@@ -1,0 +1,2 @@
+# RustProjects
+Learning rust!
