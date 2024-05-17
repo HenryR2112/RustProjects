@@ -1,0 +1,8 @@
+[package]
+name = "LgebraRust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nalgebra = { version = "0.32.5", features = ["rand"] }
+rand = "0.8.5"
