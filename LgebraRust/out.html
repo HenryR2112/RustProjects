@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+</head>
+
+<body>
+    <div>
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js"></script>
+        <script src="https://cdn.plot.ly/plotly-2.12.1.min.js"></script>
+        <div id="plotly-html-element" class="plotly-graph-div" style="height:100%; width:100%;"></div>
+
+        <script type="module">
+            const graph_div = document.getElementById("plotly-html-element");
+            await Plotly.newPlot(graph_div, {
+  "data": [
+    {
+      "type": "scatter",
+      "name": "Tri-diag Solver",
+      "mode": "lines",
+      "x": [
+        10,
+        1010,
+        2010,
+        3010,
+        4010,
+        5010,
+        6010,
+        7010,
+        8010,
+        9010
+      ],
+      "y": [
+        8.4e-6,
+        0.0008276,
+        0.0031008,
+        0.0073295,
+        0.0125582,
+        0.0203414,
+        0.0291474,
+        0.0394748,
+        0.0505512,
+        0.0637774
+      ]
+    },
+    {
+      "type": "scatter",
+      "name": "Standard Solver",
+      "mode": "lines",
+      "x": [
+        10,
+        1010,
+        2010,
+        3010,
+        4010,
+        5010,
+        6010,
+        7010,
+        8010,
+        9010
+      ],
+      "y": [
+        7.8e-6,
+        0.0519943,
+        0.4905221,
+        2.5885979,
+        7.326735,
+        15.7351147,
+        26.4853397,
+        42.4382712,
+        63.8687987,
+        91.8296071
+      ]
+    }
+  ],
+  "layout": {},
+  "config": {}
+});
+        </script>
+    </div>
+</body>
+
+</html>

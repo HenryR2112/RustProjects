@@ -1,9 +1,47 @@
 extern crate nalgebra as na;
+
+use std::time::Instant;
 use na::{DMatrix, DVector, Matrix, Dyn, U1, OMatrix, LU, Matrix3, Vector3};
 use rand::{random};
+use plotly::{Plot, Scatter};
+use plotly::common::Mode;
+
 fn main() {
+    let sizes = (10..=10000).step_by(1000); // Create a range from 10 to 10000 with steps
+    let mut tri_diag_times = Vec::new();
+    let mut standard_times = Vec::new();
+
+    for size in sizes.clone() {
+        let (A, b) = tri_diag_generator(size);
+
+        // Measure time for tri-diagonal solver
+        let start = Instant::now();
+        let _x_tri_diag = tri_diag_solver(A.clone(), b.clone());
+        let duration = start.elapsed();
+        tri_diag_times.push(duration.as_secs_f64());
+
+        // Measure time for standard solver
+        let start = Instant::now();
+        let _x_standard = standard_solver(A.clone(), b.clone());
+        let duration = start.elapsed();
+        standard_times.push(duration.as_secs_f64());
+
+        //println!("Size: {}, tri-diag-solver took: {:?}, standard solver took: {:?}", size, tri_diag_times.last().unwrap(), standard_times.last().unwrap());
+    }
+
+    // Plotting
+    let mut plot = Plot::new();
+    let tri_diag_trace = Scatter::new(sizes.clone().collect::<Vec<_>>(), tri_diag_times).mode(Mode::Lines).name("Tri-diag Solver");
+    let standard_trace = Scatter::new(sizes.collect::<Vec<_>>(), standard_times).mode(Mode::Lines).name("Standard Solver");
+
+    plot.add_trace(tri_diag_trace);
+    plot.add_trace(standard_trace);
+
+    plot.write_html("out.html");
+}
+fn debug() {
     //generate static vector
-    let vec = Vector3::new(1,2,3);
+    let vec = Vector3::new(1, 2, 3);
     //println!("Hello, world!");
     //println!("vector elements {vec}");
 
@@ -11,87 +49,145 @@ fn main() {
     let matrix = Matrix3::new(1.0, 2.0, 3.0,
                               4.0, 5.0, 6.0,
                               7.0, 8.0, 10.0);
-   // println!("matrix elements {matrix}");
+    // println!("matrix elements {matrix}");
 
     //generate random matrix of fixed size
-    let matrix2 = Matrix3::from_fn(|_,_| random::<f64>());
-   // println!("matrix elements {matrix2}");
+    let matrix2 = Matrix3::from_fn(|_, _| random::<f64>());
+    // println!("matrix elements {matrix2}");
 
     //LU decomposition of matrix
     let lu = matrix.lu();
     let l = lu.l();
     let u = lu.u();
     //let p = lu.p();
-  //  println!("matrix elements {matrix}");
-  //  println!(" L matrix elements {l}");
-  //  println!(" U matrix elements {u}");
+    //  println!("matrix elements {matrix}");
+    //  println!(" L matrix elements {l}");
+    //  println!(" U matrix elements {u}");
 
 
     //random matrix of size nxm if choosing with variable typing with print followed by code which
     // then takes it LU factorization and then checks by reversing the ensure that PA=LU based off
     //initial checks
     let matrix3: OMatrix<f32, Dyn, Dyn> = DMatrix::from_fn(10, 10, |_, _| random::<f32>());
-   // println!("matrix elements {matrix3}");
+    // println!("matrix elements {matrix3}");
     let mut test = matrix3.clone();
     let mut test2 = matrix3.clone();
+    let mut test3 = matrix3.clone();
     let lu2 = matrix3.lu();
     let l2 = lu2.l();
     let u2 = lu2.u();
     let p2 = lu2.p();
- //   println!(" L matrix elements {l2}");
- //   println!(" U matrix elements {u2}");
-    let check = l2*u2;
+    //   println!(" L matrix elements {l2}");
+    //   println!(" U matrix elements {u2}");
+    let check = l2 * u2;
     p2.permute_rows(&mut test);
     let difference = &test - &check;
 
 
     let mut b: DVector<f32> = DVector::new_random(10);
-    println!("b vector {b}");
+    // println!("b vector {b}");
 
     let x: Option<OMatrix<f32, Dyn, U1>> = lu2.solve(&b);
     println!("x vector (Debug): {:?}", x);
 
-    let tester = standard_solver::<f32>(test2, &b);
-     println!("x vector (Debug): {:?}", tester);
+    let tester = standard_solver(test2, b);
+    println!("x vector (Debug): {:?}", tester);
+
+    let matrix_size = test3.shape();
+    let (row_len, column_len) = matrix_size;
+    println!("{row_len} and {column_len}");
+    let diag = test3.diagonal();
+    println!("{diag}");
+
+
+    let(A, b) = tri_diag_generator(10);
+
+    // Solve using the tri-diagonal solver
+    let x_tri_diag = tri_diag_solver(A.clone(), b.clone());
+    println!("Solution using tri_diag_solver: {:?}", x_tri_diag);
+
+    // Solve using the standard solver
+    let x_standard = standard_solver(A.clone(), b.clone());
+    match x_standard {
+        Some(x) => println!("Solution using standard_solver: {:?}", x),
+        None => println!("standard_solver failed to find a solution."),
+    }
+
 }
+fn tri_diag_generator(n: usize) -> (DMatrix<f32>, DVector<f32>){
+    // Generate a tri-diagonal matrix
+    let mut A = DMatrix::<f32>::zeros(n, n);
+    for i in 0..n {
+        A[(i, i)] = random::<f32>() * 10.0 + 1.0; // Main diagonal
+        if i < n - 1 {
+            A[(i, i + 1)] = random::<f32>() * 10.0; // Super-diagonal
+            A[(i + 1, i)] = random::<f32>() * 10.0; // Sub-diagonal
+        }
+    }
+    //println!("Tri-diagonal matrix A:\n{}", A);
 
-
-///
-///
-/// # Arguments
-///
-/// * `A`: An input matrix of any size m x n dynamically with f32 values
-/// * `b`: A b vector of length n which is the solution.
-///
-/// returns: Option<Matrix<f32, Dyn, Const<1>, VecStorage<f32, Dyn, Const<1>>>>
-///          a vector x such that the system solution Ax = b using the LU decomposition method
-/// # Examples
-///
-/// ```
-///
-/// ```
-fn standard_solver<T>(A: OMatrix<f32, Dyn, Dyn>, b: &OMatrix<f32, Dyn, U1>) -> Option<DVector<f32>> {
+    let b: DVector<f32> = DVector::new_random(n);
+    //println!("Vector b:\n{}", b);
+    return (A, b);
+}
+fn standard_solver(A: OMatrix<f32, Dyn, Dyn>, b: DVector<f32>) -> Option<DVector<f32>> {
     let lu = A.lu();
-    let x = lu.solve(b);
-    return x;
+    //if !lu.is_invertible() {
+    //   println!("Matrix is singular or nearly singular.");
+    //    return None;
+    //}
+    lu.solve(&b)
+}
+fn tri_diag_solver(A: DMatrix<f32>, b: DVector<f32>) -> DVector<f32> {
+    let (row_len, column_len) = A.shape();
+    let (diag_opt, super_diag_opt, sub_diag_opt) = diag_grabber::<(Option<DVector<f32>>, Option<DVector<f32>>, Option<DVector<f32>>)>(A);
+
+    let diag = diag_opt.unwrap();
+    let super_diag = super_diag_opt.unwrap();
+    let sub_diag = sub_diag_opt.unwrap();
+
+    let mut forward_vector = DVector::<f32>::zeros(row_len);
+    let mut modified_b = b.clone();
+    let mut c_prime = DVector::<f32>::zeros(row_len-1);
+
+    // Forward elimination
+    forward_vector[0] = diag[0];
+    for i in 1..row_len {
+        let m = sub_diag[i - 1] / forward_vector[i - 1];
+        forward_vector[i] = diag[i] - m * super_diag[i - 1];
+        modified_b[i] = modified_b[i] - m * modified_b[i - 1];
+    }
+
+    // Back substitution
+    let mut x = DVector::from_element(row_len, 0.0);
+    x[row_len - 1] = modified_b[row_len - 1] / forward_vector[row_len - 1];
+    for i in (0..row_len - 1).rev() {
+        x[i] = (modified_b[i] - super_diag[i] * x[i + 1]) / forward_vector[i];
+    }
+
+    x
+}
+fn diag_grabber<T>(A: OMatrix<f32, Dyn, Dyn>) -> (Option<DVector<f32>>, Option<DVector<f32>>, Option<DVector<f32>>){
+    let (row_len, column_len) = A.shape();
+    let min_dim = row_len.min(column_len);
+
+    let main_diag = A.diagonal();
+
+    let super_diag = if min_dim > 1 {
+        Some(DVector::from_iterator(min_dim - 1, (0..min_dim -1).map(|i| A[(i, i+1)])))
+    } else {
+        None
+    };
+
+    let sub_diag: Option<DVector<f32>> = if min_dim > 1 {
+        Some(DVector::from_iterator(min_dim - 1, (0..min_dim - 1).map(|i| A[(i + 1, i)])))
+    } else {
+        None
+    };
+
+    let diag_opt = if main_diag.len() > 0 {Some(main_diag)} else {None};
+
+    (diag_opt, super_diag, sub_diag)
 }
 
 
-///
-///
-/// # Arguments
-///
-/// * `A`: An input matrix of any size m x n dynamically with f32 values
-/// * `b`: A b vector of length n which is the solution.
-///
-/// returns: Option<Matrix<f32, Dyn, Const<1>, VecStorage<f32, Dyn, Const<1>>>>
-///          returns a vector x which solves the system Ax=b for Strictly Diagonally
-///          Dominant tri-diagonal matrices.
-/// # Examples
-///
-/// ```
-///
-/// ```
-fn tri_diag_solver<T>(A: OMatrix<f32, Dyn, Dyn>, b: &OMatrix<f32, Dyn, U1>) -> Option<DVector<f32>> {
-    todo!()
-}
