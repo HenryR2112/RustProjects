@@ -5,34 +5,89 @@ use na::{DMatrix, DVector, Matrix, Dyn, U1, OMatrix, LU, Matrix3, Vector3};
 use rand::{random};
 use plotly::{Plot, Scatter};
 use plotly::common::Mode;
+use rayon::prelude::*;
+use linregress::{FormulaRegressionBuilder, RegressionDataBuilder};
 
 fn main() {
-    let sizes = (10..=10000).step_by(1000); // Create a range from 10 to 10000 with steps
-    let mut tri_diag_times = Vec::new();
-    let mut standard_times = Vec::new();
+    algorithmic_comparison()
+}
 
-    for size in sizes.clone() {
+fn regression_modeling(){
+    let sizes: Vec<usize> = (10..=20000).step_by(1000).collect();
+    let tri_diag_times: Vec<f64> = sizes.par_iter().map(|&size| {
         let (A, b) = tri_diag_generator(size);
 
         // Measure time for tri-diagonal solver
         let start = Instant::now();
         let _x_tri_diag = tri_diag_solver(A.clone(), b.clone());
         let duration = start.elapsed();
-        tri_diag_times.push(duration.as_secs_f64());
+        duration.as_secs_f64()
+    }).collect();
+
+    let sizes_f64: Vec<f64> = sizes.iter().map(|&s| s as f64).collect();
+    let data = vec![
+        ("sizes".to_string(), sizes_f64.clone()),
+        ("times".to_string(), tri_diag_times.clone())
+    ];
+
+    let regression_data = RegressionDataBuilder::new()
+        .build_from(data)
+        .expect("Failed to create regression data");
+
+    let formula = "times ~ sizes";
+    let model = FormulaRegressionBuilder::new()
+        .data(&regression_data)
+        .formula(formula)
+        .fit()
+        .expect("Failed to fit linear regression model");
+
+    let params = model.parameters();
+
+    let intercept = params[0];
+    let slope = params[1];
+
+    println!("Linear Regression Result:");
+    println!("Intercept: {}", intercept);
+    println!("Slope: {}", slope);
+
+    let regression_line: Vec<f64> = sizes_f64.iter().map(|&x| intercept + slope * x).collect();
+
+    // Plotting
+    let mut plot = Plot::new();
+    let tri_diag_trace = Scatter::new(sizes.clone(), tri_diag_times).mode(Mode::Lines).name("Tri-diag Solver");
+    let regression_trace = Scatter::new(sizes.clone(), regression_line).mode(Mode::Lines).name("Regression Line");
+
+    plot.add_trace(tri_diag_trace);
+    plot.add_trace(regression_trace);
+
+    plot.write_html("out2.html");
+}
+fn algorithmic_comparison(){
+    let sizes: Vec<usize> = (10..=10000).step_by(1000).collect();
+    let tri_diag_times: Vec<f64> = sizes.par_iter().map(|&size| {
+        let (A, b) = tri_diag_generator(size);
+
+        // Measure time for tri-diagonal solver
+        let start = Instant::now();
+        let _x_tri_diag = tri_diag_solver(A.clone(), b.clone());
+        let duration = start.elapsed();
+        duration.as_secs_f64()
+    }).collect();
+
+    let standard_times: Vec<f64> = sizes.par_iter().map(|&size| {
+        let (A, b) = tri_diag_generator(size);
 
         // Measure time for standard solver
         let start = Instant::now();
         let _x_standard = standard_solver(A.clone(), b.clone());
         let duration = start.elapsed();
-        standard_times.push(duration.as_secs_f64());
-
-        //println!("Size: {}, tri-diag-solver took: {:?}, standard solver took: {:?}", size, tri_diag_times.last().unwrap(), standard_times.last().unwrap());
-    }
+        duration.as_secs_f64()
+    }).collect();
 
     // Plotting
     let mut plot = Plot::new();
-    let tri_diag_trace = Scatter::new(sizes.clone().collect::<Vec<_>>(), tri_diag_times).mode(Mode::Lines).name("Tri-diag Solver");
-    let standard_trace = Scatter::new(sizes.collect::<Vec<_>>(), standard_times).mode(Mode::Lines).name("Standard Solver");
+    let tri_diag_trace = Scatter::new(sizes.clone(), tri_diag_times).mode(Mode::Lines).name("Tri-diag Solver");
+    let standard_trace = Scatter::new(sizes.clone(), standard_times).mode(Mode::Lines).name("Standard Solver");
 
     plot.add_trace(tri_diag_trace);
     plot.add_trace(standard_trace);
